@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<PowershellConnectorDefinition Id="UserEntitlementsConnector" Version="1.0" Description="Powershell Connector for User and Entitlement Management">
+
+    <PluginAssemblies />
+
+    <ConnectionParameters>
+        <ConnectionParameter Name="BaseUrl" Description="The Base URL for the REST API calls" />
+        <ConnectionParameter Name="ScriptPath" Description="Path to the PowerShell script for API calls" />
+    </ConnectionParameters>
+
+    <Initialization>
+        <CustomCommands>
+            <CustomCommand Name="Import-UserEntitlementsModule">
+                <![CDATA[
+                    param([String]$_PathToScript)
+                    # Load the PowerShell script
+                    . $_PathToScript
+                    Get-Command Get-AllUsers
+                ]]>
+            </CustomCommand>
+            <CustomCommand Name="Dispose-Logger">
+                <![CDATA[
+                    Write-Host "Cleaning up session"
+                ]]>
+            </CustomCommand>
+        </CustomCommands>
+
+        <PredefinedCommands>
+            <Command Name="Get-AllUsers" />
+            <Command Name="Get-UserEntitlements" />
+            <Command Name="Create-User" />
+            <Command Name="Assign-Roles" />
+            <Command Name="Update-User" />
+        </PredefinedCommands>
+
+        <EnvironmentInitialization>
+            <Connect>
+                <CommandSequence>
+                    <Item Command="Import-UserEntitlementsModule" Order="1">
+                        <SetParameter Param="_PathToScript" Source="ConnectionParameter" Value="ScriptPath" />
+                    </Item>
+                </CommandSequence>
+            </Connect>
+            <Disconnect>
+                <CommandSequence>
+                    <Item Command="Dispose-Logger" Order="1" />
+                </CommandSequence>
+            </Disconnect>
+        </EnvironmentInitialization>
+    </Initialization>
+
+    <Schema>
+        <Class Name="UserEntitlements">
+            <Properties>
+                <!-- Username -->
+                <Property Name="Username" DataType="String" IsUniqueKey="true" IsMandatory="true" IsDisplay="true">
+                    <ReturnBindings>
+                        <Bind CommandResultOf="Get-AllUsers" Path="username" />
+                        <Bind CommandResultOf="Get-UserEntitlements" Path="username" />
+                    </ReturnBindings>
+                    <CommandMappings>
+                        <Map ToCommand="Get-UserEntitlements" Parameter="username" />
+                        <Map ToCommand="Update-User" Parameter="username" />
+                    </CommandMappings>
+                </Property>
+
+                <!-- Entitlement Name -->
+                <Property Name="EntitlementName" DataType="String" IsMandatory="true" IsDisplay="true">
+                    <ReturnBindings>
+                        <Bind CommandResultOf="Get-AllUsers" Path="entitlements.entitlementName" />
+                        <Bind CommandResultOf="Get-UserEntitlements" Path="entitlements.entitlementName" />
+                    </ReturnBindings>
+                    <CommandMappings>
+                        <Map ToCommand="Assign-Roles" Parameter="entitlementName" />
+                        <!-- <Map ToCommand="Remove-Roles" Parameter="entitlementName" /> -->
+                    </CommandMappings>
+                </Property>
+
+                <!-- Application -->
+                <Property Name="Application" DataType="String" IsMandatory="true" IsDisplay="true">
+                    <ReturnBindings>
+                        <Bind CommandResultOf="Get-AllUsers" Path="entitlements.application" />
+                        <Bind CommandResultOf="Get-UserEntitlements" Path="entitlements.application" />
+                    </ReturnBindings>
+                </Property>
+            </Properties>
+
+            <ReadConfiguration>
+                <!-- Get All Users with Entitlements -->
+                <ListingCommand Command="Get-AllUsers">
+                    <SetParameter Param="BaseUrl" Source="ConnectionParameter" Value="BaseUrl" />
+                </ListingCommand>
+
+                <!-- Get Specific User's Entitlements -->
+                <CommandSequence>
+                    <Item Command="Get-UserEntitlements" Order="1">
+                        <SetParameter Param="BaseUrl" Source="ConnectionParameter" Value="BaseUrl" />
+                    </Item>
+                </CommandSequence>
+            </ReadConfiguration>
+
+            <MethodConfiguration>
+                <!-- Create User and Assign Entitlements -->
+                <Method Name="Insert">
+                    <CommandSequence>
+                        <Item Command="Create-User" Order="1">
+                            <SetParameter Param="BaseUrl" Source="ConnectionParameter" Value="BaseUrl" />
+                        </Item>
+                        <Item Command="Assign-Roles" Order="2">
+                            <SetParameter Param="BaseUrl" Source="ConnectionParameter" Value="BaseUrl" />
+                        </Item>
+                    </CommandSequence>
+                </Method>
+
+                <!-- Update User -->
+                <Method Name="Update">
+                    <CommandSequence>
+                        <Item Command="Update-User" Order="1">
+                            <SetParameter Param="BaseUrl" Source="ConnectionParameter" Value="BaseUrl" />
+                        </Item>
+                    </CommandSequence>
+                </Method>
+
+                <!-- Remove Roles -->
+                <!-- <Method Name="Delete">
+                    <CommandSequence>
+                        <Item Command="Remove-Roles" Order="1">
+                            <SetParameter Param="BaseUrl" Source="ConnectionParameter" Value="BaseUrl" />
+                        </Item>
+                    </CommandSequence>
+                </Method> -->
+            </MethodConfiguration>
+        </Class>
+    </Schema>
+
+</PowershellConnectorDefinition>
